@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru" class="overflow-x-hidden">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title if title else "MedMonitor" }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Marck+Script&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap');
+        * { font-family: "Nunito", sans-serif; font-weight: 600; }
+        .cursive-font { font-family: "Marck Script", cursive; }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        .glass-nav:hover { background: rgba(255,255,255,0.45); }
+        .glass-nav a { color: rgba(25,50,100,0.9); font-size: 1.2rem; text-decoration: none; transition: color 0.3s ease; }
+        .glass-nav a:hover { color: rgba(25,50,100,1); }
+    </style>
+</head>
+<body class="bg-white flex flex-col items-center h-[100vh] overflow-hidden">
+
+    <div class="absolute p-0 m-0 w-[100vw] h-[100vh] overflow-hidden -z-10">
+        <img src="/static/bg-gradient.jpg" class="w-full overflow-hidden" alt="">
+    </div>
+
+    <!-- Навигация -->
+    <div class="w-full py-8 px-12 border-box flex">
+        {% include "nav.html" %}
+    </div>
+
+    <!-- Заголовок -->
+    <h1 class="cursive-font text-6xl text-blue-900 mt-8 mb-2">{{ header }}</h1>
+    <p class="text-xl mb-8">{{ description }}</p>
+
+    <!-- Контент -->
+    {% block content %}{% endblock %}
+
+</body>
+</html>
