@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BioSignals — ФПГ</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body class="theme" data-type="ppg">
+<header class="topbar">
+  <div class="brand">BioSignals</div>
+  <nav class="menu">
+    <a href="index.html">Главная</a>
+    <a href="ecg.html">ЭКГ</a>
+    <a href="emg.html">ЭМГ</a>
+    <a class="active" href="ppg.html">ФПГ</a>
+    <a href="resp.html">Дыхание</a>
+  </nav>
+</header>
+
+<main class="container layout-3col">
+  <aside class="panel left">
+    <h3>Настройки графика</h3>
+    <div class="form">
+      <label class="row"><span>Интерполяция</span><input id="opt-smooth" type="checkbox" checked></label>
+      <label class="row"><span>Сетка</span><input id="opt-grid" type="checkbox" checked></label>
+      <label class="row"><span>Толщина линии</span><input id="opt-width" type="range" min="1" max="5" value="2"></label>
+      <label class="row"><span>Авто Y-диапазон</span><input id="opt-autoY" type="checkbox" checked></label>
+      <div id="manualY" class="grid2 hidden">
+        <label><span class="small">Y min</span><input id="opt-ymin" type="number" step="0.1" value="0"></label>
+        <label><span class="small">Y max</span><input id="opt-ymax" type="number" step="0.1" value="1"></label>
+      </div>
+      <hr>
+      <label class="row"><span>Предел точек</span><input id="opt-cap" type="number" min="100" max="5000" value="1000"></label>
+      <label class="row"><span>Частота (Гц)</span><input id="opt-fs" type="number" min="1" max="1000" value="50"></label>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2 id="measure-title">ФПГ</h2>
+        <div class="subtitle" id="subtitle">value 1</div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart" aria-label="График" role="img"></canvas></div>
+      <div class="data-box">
+        <div class="data-box__head">Сырые данные (последние 50)</div>
+        <pre id="raw" class="data-box__pre"></pre>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel right">
+    <h3>Запись</h3>
+    <div class="form">
+      <label class="row"><span>Длительность (с)</span><input id="rec-duration" type="number" min="1" max="600" value="10"></label>
+      <div class="row"><button id="btn-record" class="btn primary">Начать запись</button></div>
+      <progress id="rec-progress" value="0" max="100" class="progress"></progress>
+      <div id="rec-timer" class="timer">00:00.0</div>
+      <h3 class="mt">Экспорт</h3>
+      <div class="grid2">
+        <label><span class="small">Формат</span>
+          <select id="dl-format"><option value="csv">CSV</option><option value="json">JSON</option><option value="txt">TXT</option></select>
+        </label>
+        <button id="btn-download" class="btn" disabled>Скачать</button>
+      </div>
+      <h3 class="mt">Анализ</h3>
+      <button id="btn-analyze" class="btn outline">Анализ</button>
+      <div id="analysis" class="analysis"></div>
+    </div>
+  </aside>
+</main>
+
+<footer class="footer"><span>© 2025 BioSignals</span></footer>
+<script src="js/chart.js"></script>
+<script src="js/page.js"></script>
+</body>
+</html>
