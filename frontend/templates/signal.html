@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="w-full max-w-6xl px-8">
+    <h1 class="text-5xl font-bold text-blue-900 mb-2 text-center">{{ header }}</h1>
+    <p class="text-lg text-gray-600 mb-8 text-center">{{ description }}</p>
+    
+    <div class="w-full h-[65vh] bg-white rounded-2xl shadow-lg p-6">
+        <canvas id="chart" class="w-full h-full"></canvas>
+    </div>
+</div>
+
+<script>
+const ctx = document.getElementById('chart').getContext('2d');
+const maxPoints = 2000;
+const data = {
+    labels: Array(maxPoints).fill(''),
+    datasets: [{
+        label: '{{ signal|upper }}',
+        data: Array(maxPoints).fill(0),
+        borderColor: '{{ color }}',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.1,
+    }]
+};
+
+const chart = new Chart(ctx, {
+    type: 'line',
+    data,
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+            x: { display: false },
+            y: {
+                ticks: { color: '#1e3a8a' },
+                grid: { color: 'rgba(30,58,138,0.1)' }
+            }
+        },
+        plugins: { 
+            legend: { 
+                display: true,
+                position: 'top',
+                labels: { 
+                    color: '#1e3a8a',
+                    font: { size: 14, weight: 'bold' }
+                }
+            }
+        }
+    }
+});
+
+// WebSocket подключение к FastAPI на порту 8000
+const ws = new WebSocket(`ws://localhost:8000/ws/{{ signal }}`);
+
+ws.onopen = () => {
+    console.log('WebSocket подключен для {{ signal }}');
+};
+
+ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'batch' && msg.samples) {
+        for (const y of msg.samples) {
+            data.datasets[0].data.push(y);
+            data.datasets[0].data.shift();
+        }
+        chart.update('none');
+    }
+};
+
+ws.onerror = (error) => {
+    console.error('WebSocket ошибка:', error);
+};
+
+ws.onclose = () => {
+    console.log('WebSocket отключен');
+};
+
+// Очистка при уходе со страницы
+window.addEventListener('beforeunload', () => {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+});
+</script>
+{% endblock %}
