@@ -21,3 +21,4 @@ target
 #.idea/
 
 arduino/main.ino
+backend/.venv
