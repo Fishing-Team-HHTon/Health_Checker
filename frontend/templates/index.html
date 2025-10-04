@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" class="overflow-x-hidden">
+<head>
+    <meta charset="UTF-8">
+    <title>MedMonitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Marck+Script&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap');
+        * {
+            font-family: "Nunito", sans-serif;
+            font-optical-sizing: auto;
+            font-weight: 600;
+            font-style: normal;
+        }
+
+        .cursive-font {
+            font-family: "Marck Script", cursive;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        nav a {
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .glass-nav {
+            position: relative;
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border-radius: 1rem;
+        }
+
+        .glass-nav:hover {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(14px) saturate(180%);
+        }
+
+        .glass-nav a {
+            color: rgba(25, 50, 100, 0.9);
+            transition: color 0.3s ease;
+        }
+        .glass-nav a:hover {
+            color: rgba(25, 50, 100, 1);
+        }
+
+        section {
+            background: linear-gradient(to right, rgba(0, 0, 0, 0), #f7f4f6, rgba(0, 0, 0, 0)), url(https://grainy-gradients.vercel.app/noise.svg);
+        }
+
+    </style>
+</head>
+<body class="flex flex-col m-0 p-0 w-[100vw] h-[150vh] bg-white">
+    <div class="flex flex-col w-[100vw] h-[100vh] relative">
+
+        <div class="w-full py-8 px-12 border-box flex">
+            {% include "nav.html" %}
+        </div>
+        <img src="/static/bg-arduino.png" class="absolute bottom-[15%] right-[5%] -z-20 h-1/2" alt="">
+        <div class="glass-overlay absolute bottom-0 w-full overflow-hidden"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 400"><defs><linearGradient id="glass-gradient" x1="0" y1="0" x2="1920" y2="0"><stop offset="0%" stop-color="rgba(255,255,255,0.8)"></stop><stop offset="25%" stop-color="rgba(255,255,255,0.4)"></stop><stop offset="50%" stop-color="rgba(30,58,138,0.4)"></stop><stop offset="75%" stop-color="rgba(255,255,255,0.4)"></stop><stop offset="100%" stop-color="rgba(255,255,255,0.8)"></stop></linearGradient><filter id="glass-effect" x="-100" y="-100" width="2100" height="600"><feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"></feGaussianBlur><feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge><feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="rgba(255,255,255,0.6)"></feDropShadow><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="rgba(30,58,138,0.4)"></feDropShadow></filter></defs><path d="M-43 303H791L892 73.5L945 565L1060.5 303H2025.5" stroke="url(#glass-gradient)" stroke-width="43" stroke-opacity="0.5" filter="url(#glass-effect)" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+
+        <main class="w-2/3 mx-auto h-full m-12 border-box">
+            <h1 class="cursive-font text-8xl text-blue-900 ml-4 z-10">
+                MedMonitor
+            </h1>
+            <h2 class="text-3xl mb-4 text-blue-900">
+                — это система регистрации различных биосигналов
+            </h2>
+            <p class="text-2xl">
+                с нашим решением вы можете отслеживать в реальном времени:<br>
+                <span class="ml-4">
+                · Дыхание
+            </span><br>
+                <span class="ml-4">
+                · ЭКГ
+            </span><br>
+                <span class="ml-4">
+                · ЭМГ
+            </span><br>
+                <span class="ml-4">
+                · ЭКГ
+            </span>
+            </p>
+        </main>
+    </div>
+
+
+    <section class="w-[100vw] h-[50vh] p-12 border-box z-30">
+        <p>123</p>
+    </section>
+
+
+    <div class="absolute w-full h-full top-0 left-0 m-0 p-0">
+        <div class="absolute -z-30 w-full h-full overflow-hidden">
+            <img src="/static/bg-gradient.jpg" class="w-full" alt="">
+        </div>
+    </div>
+</body>
+</html>

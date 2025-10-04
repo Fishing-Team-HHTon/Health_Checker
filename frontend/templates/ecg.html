@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="w-3/4 h-[60vh] bg-white rounded-2xl shadow-lg p-6">
+    <canvas id="chart" class="w-full h-full"></canvas>
+</div>
+
+<script>
+    const ctx = document.getElementById('chart').getContext('2d');
+    const maxPoints = 2000;
+    const data = {
+        labels: Array(maxPoints).fill(''),
+        datasets: [{
+            label: '{{ signal.upper() }}',
+            data: Array(maxPoints).fill(0),
+            borderColor: '{{ color }}',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.1,
+        }]
+    };
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // <--- вот ключ
+            animation: false,
+            scales: {
+                x: { display: false },
+                y: { ticks: { color: '#1e3a8a' }, grid: { color: 'rgba(30,58,138,0.1)' } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+
+    const ws = new WebSocket('ws://localhost:8000/ws/{{ signal }}');
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "batch" && msg.samples) {
+            for (const y of msg.samples) {
+                data.datasets[0].data.push(y);
+                data.datasets[0].data.shift();
+            }
+            chart.update('none');
+        }
+    };
+</script>
+{% endblock %}
