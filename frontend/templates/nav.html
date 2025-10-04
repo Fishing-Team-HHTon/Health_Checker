@@ -1,9 +1,43 @@
+{% set current = request.path %}
+
+<style>
+    nav a {
+        font-size: 1.2rem;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .glass-nav {
+        position: relative;
+        background: rgba(255, 255, 255, 0.35);
+        backdrop-filter: blur(12px) saturate(150%);
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        border-radius: 1rem;
+    }
+
+    .glass-nav:hover {
+        background: rgba(255, 255, 255, 0.45);
+        backdrop-filter: blur(14px) saturate(180%);
+    }
+
+    .glass-nav a {
+        color: rgba(25, 50, 100, 0.9);
+        transition: color 0.3s ease;
+    }
+
+    .glass-nav a:hover {
+        color: rgba(25, 50, 100, 1);
+    }
+</style>
+
 <nav class="glass-nav w-full h-16 z-50">
     <div class="h-full w-2/3 mx-auto flex items-center justify-around">
-        <a href="/">Главная</a>
-        <a href="/ecg">ЭКГ</a>
-        <a href="/emg">ЭМГ</a>
-        <a href="/ppg">ФПГ</a>
-        <a href="/resp">Дыхание</a>
+        <a href="/" class="{% if current == '/' %}text-blue-900 font-bold border-b-2 border-blue-900{% else %}text-blue-800 hover:text-blue-900{% endif %} transition-all">Главная</a>
+        <a href="/ecg" class="{% if current == '/ecg' %}text-blue-900 font-bold border-b-2 border-blue-900{% else %}text-blue-800 hover:text-blue-900{% endif %} transition-all">ЭКГ</a>
+        <a href="/emg" class="{% if current == '/emg' %}text-blue-900 font-bold border-b-2 border-blue-900{% else %}text-blue-800 hover:text-blue-900{% endif %} transition-all">ЭМГ</a>
+        <a href="/ppg" class="{% if current == '/ppg' %}text-blue-900 font-bold border-b-2 border-blue-900{% else %}text-blue-800 hover:text-blue-900{% endif %} transition-all">ФПГ</a>
+        <a href="/resp" class="{% if current == '/resp' %}text-blue-900 font-bold border-b-2 border-blue-900{% else %}text-blue-800 hover:text-blue-900{% endif %} transition-all">Дыхание</a>
     </div>
 </nav>
