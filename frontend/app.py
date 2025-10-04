@@ -4,10 +4,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return render_template("index.html",
-                         title="MedMonitor",
-                         header="Система мониторинга медицинских сигналов",
-                         description="Выберите тип анализа")
+    return render_template("index.html")
 
 @app.route("/ecg")
 def ecg():
