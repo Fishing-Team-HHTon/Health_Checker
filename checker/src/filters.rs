@@ -39,7 +39,6 @@ impl HighPass1 {
     }
 }
 
-/// Короткая скользящая средняя (против случайного шума).
 pub struct MovingAvg {
     buf: Vec<f32>,
     sum: f32,
@@ -113,5 +112,56 @@ mod tests {
             out = ma.step(x);
         }
         assert!((out - 4.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn high_pass_initializes_on_first_step() {
+        let mut hp = HighPass1::new(200.0, 0.5);
+        let first = hp.step(2.0);
+        let second = hp.step(2.0);
+        assert_eq!(first, 0.0);
+        assert!(second.abs() < 1e-6);
+    }
+
+    #[test]
+    fn high_pass_tracks_changing_signal() {
+        let mut hp = HighPass1::new(100.0, 0.5);
+        let mut last = 0.0;
+        for x in [0.0, 1.0, 2.0, 3.0, 4.0] {
+            last = hp.step(x);
+        }
+        assert!(last.is_finite());
+        assert!(last > 0.0);
+        assert!(last < 5.0);
+    }
+
+    #[test]
+    fn moving_average_handles_single_element_window() {
+        let mut ma = MovingAvg::new(1);
+        assert!((ma.step(5.0) - 5.0).abs() < f32::EPSILON);
+        assert!((ma.step(7.0) - 7.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    #[should_panic]
+    fn moving_average_requires_positive_length() {
+        let _ = MovingAvg::new(0);
+    }
+
+    #[test]
+    fn moving_average_wraps_buffer_correctly() {
+        let mut ma = MovingAvg::new(3);
+        ma.step(1.0);
+        ma.step(2.0);
+        ma.step(3.0);
+        let out = ma.step(4.0);
+        assert!((out - (2.0 + 3.0 + 4.0) / 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn moving_average_reports_partial_window_average() {
+        let mut ma = MovingAvg::new(4);
+        assert!((ma.step(1.0) - 1.0).abs() < f32::EPSILON);
+        assert!((ma.step(2.0) - 1.5).abs() < f32::EPSILON);
     }
 }

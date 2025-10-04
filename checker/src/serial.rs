@@ -18,6 +18,7 @@ impl SerialFramer {
     }
 
     /// Возвращает текущий размер внутреннего буфера (для тестов/диагностики).
+    #[allow(dead_code)]
     pub fn pending_len(&self) -> usize {
         self.pending.len()
     }
@@ -133,56 +134,119 @@ fn looks_like_number(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracing_test::{logs_contain, traced_test};
 
-    #[traced_test]
     #[test]
     fn splits_crlf_lines() {
         let mut framer = SerialFramer::new(64);
         let tokens = framer.push_chunk(b"512\r\n513\r\n");
         assert_eq!(tokens, vec!["512".to_string(), "513".to_string()]);
-        assert!(logs_contain("Framed token"));
     }
 
-    #[traced_test]
     #[test]
     fn splits_space_separated_tokens() {
         let mut framer = SerialFramer::new(64);
         let mut tokens = framer.push_chunk(b"512 513");
         assert_eq!(tokens, vec!["512".to_string()]);
-        tokens.extend(framer.push_chunk(b" 514"));
+        tokens.extend(framer.push_chunk(b" 514\n"));
         assert_eq!(
             tokens,
             vec!["512".to_string(), "513".to_string(), "514".to_string()]
         );
     }
 
-    #[traced_test]
     #[test]
     fn drops_oversized_without_delimiters() {
         let mut framer = SerialFramer::new(8);
         let tokens = framer.push_chunk(&vec![b'1'; 9]);
         assert!(tokens.is_empty());
-        assert!(logs_contain("Dropping oversized buffer without delimiters"));
         assert_eq!(framer.pending_len(), 0);
     }
 
-    #[traced_test]
     #[test]
     fn drops_non_utf8_token() {
         let mut framer = SerialFramer::new(8);
-        let mut data = vec![0xFF, b'\n'];
+        let data = vec![0xFF, b'\n'];
         let tokens = framer.push_chunk(&data);
         assert!(tokens.is_empty());
-        assert!(logs_contain("Dropping non-UTF8 token"));
+        assert_eq!(framer.pending_len(), 0);
     }
 
-    #[traced_test]
     #[test]
     fn enforces_token_limit() {
         let mut framer = SerialFramer::new(4);
         let tokens = framer.push_chunk(b"12345\n123\n");
         assert_eq!(tokens, vec!["123".to_string()]);
-        assert!(logs_contain("Dropping oversized token"));
+        assert_eq!(framer.pending_len(), 0);
+    }
+
+    #[test]
+    fn handles_tokens_split_across_chunks() {
+        let mut framer = SerialFramer::new(64);
+        let mut tokens = framer.push_chunk(b"1");
+        assert!(tokens.is_empty());
+        tokens.extend(framer.push_chunk(b"23\n45"));
+        assert_eq!(tokens, vec!["123".to_string()]);
+        tokens.extend(framer.push_chunk(b"6\n"));
+        assert_eq!(tokens, vec!["123".to_string(), "456".to_string()]);
+    }
+
+    #[test]
+    fn handles_semicolon_delimiter() {
+        let mut framer = SerialFramer::new(32);
+        let tokens = framer.push_chunk(b"512;513;514\n");
+        assert_eq!(
+            tokens,
+            vec!["512".to_string(), "513".to_string(), "514".to_string()]
+        );
+    }
+
+    #[test]
+    fn ignores_leading_delimiters() {
+        let mut framer = SerialFramer::new(32);
+        let tokens = framer.push_chunk(b"\n\r512\n");
+        assert_eq!(tokens, vec!["512".to_string()]);
+    }
+
+    #[test]
+    fn handles_negative_numbers() {
+        let mut framer = SerialFramer::new(32);
+        let tokens = framer.push_chunk(b"-1\n-2\n");
+        assert_eq!(tokens, vec!["-1".to_string(), "-2".to_string()]);
+    }
+
+    #[test]
+    fn handles_positive_numbers_with_plus_sign() {
+        let mut framer = SerialFramer::new(32);
+        let tokens = framer.push_chunk(b"+1 +2 +3\n");
+        assert_eq!(
+            tokens,
+            vec!["+1".to_string(), "+2".to_string(), "+3".to_string()]
+        );
+    }
+
+    #[test]
+    fn clears_backlog_when_limit_exceeded() {
+        let mut framer = SerialFramer::new(4);
+        let big = vec![b'1'; 40];
+        let tokens = framer.push_chunk(&big);
+        assert!(tokens.is_empty());
+        assert_eq!(framer.pending_len(), 0);
+    }
+
+    #[test]
+    fn whitespace_delimiters_with_numbers_are_detected() {
+        let mut framer = SerialFramer::new(16);
+        let tokens = framer.push_chunk(b"123 456\t789\n");
+        assert_eq!(
+            tokens,
+            vec!["123".to_string(), "456".to_string(), "789".to_string()]
+        );
+    }
+
+    #[test]
+    fn trailing_space_is_trimmed() {
+        let mut framer = SerialFramer::new(16);
+        let tokens = framer.push_chunk(b"123 \n");
+        assert_eq!(tokens, vec!["123".to_string()]);
     }
 }

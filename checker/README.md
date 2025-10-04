@@ -18,5 +18,5 @@ cargo clean
 
 ### Запуск проекта:
 ```bash
-    cargo run --release -- --port COM4 --fs 100 --vref 5.0 --hp --ma 3 --csv ecg.csv --echo-mode-lines
+    cargo run --release -- --port COM4 --fs 100 --vref 5.0 --hp --ma 3 --echo-mode-lines --mode ecg
 ```

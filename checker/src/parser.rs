@@ -70,4 +70,48 @@ mod tests {
     fn rejects_garbage() {
         assert_eq!(parse_line("foo"), Incoming::Unknown("foo".to_string()));
     }
+
+    #[test]
+    fn trims_whitespace_before_parsing() {
+        assert_eq!(parse_line(" 512 \r"), Incoming::Sample(512));
+        assert_eq!(parse_line(" \t!\n"), Incoming::LeadOff);
+    }
+
+    #[test]
+    fn handles_mode_line_with_suffix() {
+        let line = "   [MODE] PPG (test)  ";
+        assert_eq!(
+            parse_line(line),
+            Incoming::ModeLine(line.trim().to_string())
+        );
+    }
+
+    #[test]
+    fn empty_string_is_unknown() {
+        assert_eq!(parse_line(""), Incoming::Unknown("".to_string()));
+    }
+
+    #[test]
+    fn whitespace_only_is_unknown() {
+        assert_eq!(parse_line("   \t \r"), Incoming::Unknown("".to_string()));
+    }
+
+    #[test]
+    fn rejects_out_of_range_numbers() {
+        assert_eq!(parse_line("65536"), Incoming::Unknown("65536".to_string()));
+        assert_eq!(parse_line("-1"), Incoming::Unknown("-1".to_string()));
+    }
+
+    #[test]
+    fn parses_upper_bound_sample() {
+        assert_eq!(parse_line("65535"), Incoming::Sample(65535));
+    }
+
+    #[test]
+    fn rejects_mixed_alphanumeric() {
+        assert_eq!(
+            parse_line("123abc"),
+            Incoming::Unknown("123abc".to_string())
+        );
+    }
 }
