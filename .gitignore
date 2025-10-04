@@ -21,3 +21,5 @@ target
 #.idea/
 
 arduino/main.ino
+checker/target
+checker/ecg.csv
