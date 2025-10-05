@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{ArgAction, Parser, ValueEnum};
+use reqwest::Client;
+use serde::Serialize;
 use std::{
     fs::File,
     io::Write,
@@ -11,15 +13,14 @@ use tokio_serial::SerialPortBuilderExt;
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::EnvFilter;
 
+use goida_bridge::{
+    filters::{HighPass1, MovingAvg},
+    http_sink,
+    mode::Mode,
+    parser::{self, Incoming, SampleJson},
+    serial::SerialFramer,
+};
 use serialport::{ClearBuffer, SerialPort};
-
-mod filters;
-mod parser;
-mod serial;
-
-use filters::{HighPass1, MovingAvg};
-use parser::{parse_line, Incoming, SampleJson};
-use serial::SerialFramer;
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum OutFmt {
@@ -27,49 +28,9 @@ enum OutFmt {
     Csv,
 }
 
-#[derive(Copy, Clone, Debug, ValueEnum, Eq, PartialEq)]
-enum Mode {
-    Ecg,
-    Ppg,
-    Resp,
-    Emg,
-    None,
-}
-
-impl Mode {
-    fn command(self) -> Option<&'static [u8]> {
-        match self {
-            Mode::Ecg => Some(b"eE\r\n"),
-            Mode::Ppg => Some(b"pP\r\n"),
-            Mode::Resp => Some(b"rR\r\n"),
-            Mode::Emg => Some(b"mM\r\n"),
-            Mode::None => None,
-        }
-    }
-
-    fn from_runtime_token(token: &str) -> Option<Self> {
-        let lower = token.trim().to_ascii_lowercase();
-        match lower.as_str() {
-            "e" | "ecg" => Some(Mode::Ecg),
-            "p" | "ppg" => Some(Mode::Ppg),
-            "r" | "resp" => Some(Mode::Resp),
-            "m" | "emg" => Some(Mode::Emg),
-            _ => None,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Mode::Ecg => "ECG",
-            Mode::Ppg => "PPG",
-            Mode::Resp => "RESP",
-            Mode::Emg => "EMG",
-            Mode::None => "NONE",
-        }
-    }
-}
-
 const DEFAULT_BAUD: u32 = 115_200;
+const DEFAULT_INGEST_URL: &str = "http://127.0.0.1:8000/api/ingest";
+const DEFAULT_CONTROL_URL: &str = "http://127.0.0.1:8000/api/mode";
 
 #[derive(Parser, Debug)]
 #[command(version, about = "ECG middleware for Arduino AD8232")]
@@ -106,6 +67,38 @@ struct Opts {
 
     #[arg(long = "max-line", default_value_t = 2048usize)]
     max_line: usize,
+
+    #[arg(long = "ingest-url", default_value = DEFAULT_INGEST_URL)]
+    ingest_url: String,
+
+    #[arg(long = "control-url", default_value = DEFAULT_CONTROL_URL)]
+    control_url: String,
+}
+
+#[derive(Serialize)]
+struct ModeUpdatePayload<'a> {
+    mode: &'a str,
+}
+
+async fn post_mode_update(client: &Client, url: &str, mode: Mode) {
+    let Some(mode_value) = mode.api_token() else {
+        return;
+    };
+
+    let payload = ModeUpdatePayload { mode: mode_value };
+    match client.post(url).json(&payload).send().await {
+        Ok(resp) => {
+            if !resp.status().is_success() {
+                warn!(
+                    status = %resp.status(),
+                    "Backend mode update returned non-success status"
+                );
+            }
+        }
+        Err(e) => {
+            warn!("Failed to send mode update to backend: {e}");
+        }
+    }
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -117,12 +110,30 @@ async fn main() -> Result<()> {
         .init();
 
     let opts = Opts::parse();
+    let control_client = Client::new();
+    let control_url = opts.control_url.clone();
     debug!(?opts, "CLI options parsed");
     info!(
         "Opening port {} @ {} baud… (default {DEFAULT_BAUD}; override with --baud)",
         opts.port, opts.baud
     );
     info!(mode = ?opts.mode, "Selected Arduino mode auto-switch");
+    info!(
+        ingest_url = %opts.ingest_url,
+        control_url = %opts.control_url,
+        "Using backend endpoints"
+    );
+
+    let (http_tx, http_rx) = mpsc::channel::<SampleJson>(512);
+    let (mode_watch_tx, mode_watch_rx) = watch::channel(opts.mode);
+
+    let http_sink_task = tokio::spawn(http_sink::run_http_sink(
+        opts.ingest_url.clone(),
+        http_rx,
+        mode_watch_rx,
+        128,
+        200,
+    ));
 
     if let Ok(ports) = serialport::available_ports() {
         if ports.is_empty() {
@@ -158,6 +169,7 @@ async fn main() -> Result<()> {
             error!("Не удалось сбросить буфер порта после команды старта: {e}");
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
+        post_mode_update(&control_client, &control_url, opts.mode).await;
     }
 
     let (mut reader, writer) = tokio::io::split(port);
@@ -194,9 +206,21 @@ async fn main() -> Result<()> {
         debug!("stdin command channel closed; writer task exiting");
     });
 
+    let control_poll_task = {
+        let control_url = control_url.clone();
+        let mode_watch_tx = mode_watch_tx.clone();
+        let cmd_tx = cmd_tx.clone();
+        tokio::spawn(async move {
+            http_sink::run_control_poll(control_url, 500, mode_watch_tx, cmd_tx).await;
+        })
+    };
+
     let stdin_task = {
         let cmd_tx = cmd_tx.clone();
+        let mode_watch_tx = mode_watch_tx.clone();
         let mut shutdown_rx = shutdown_rx.clone();
+        let control_client = control_client.clone();
+        let control_url = control_url.clone();
         tokio::spawn(async move {
             let stdin = io::stdin();
             let mut lines = io::BufReader::new(stdin).lines();
@@ -225,6 +249,8 @@ async fn main() -> Result<()> {
                                 }
                                 if let Some(mode) = Mode::from_runtime_token(trimmed) {
                                     info!(mode = mode.label(), "Прочитали команду режима из stdin");
+                                    let _ = mode_watch_tx.send(mode);
+                                    post_mode_update(&control_client, &control_url, mode).await;
                                     if cmd_tx.send(mode).is_err() {
                                         debug!("Writer task dropped; stopping stdin reader");
                                         break;
@@ -276,7 +302,7 @@ async fn main() -> Result<()> {
     let mut chunk = vec![0u8; 256];
     let mut framer = SerialFramer::new(opts.max_line);
 
-    loop {
+    'serial: loop {
         let n = match reader.read(&mut chunk).await {
             Ok(0) => {
                 warn!("EOF от COM-порта (0 байт).");
@@ -319,7 +345,7 @@ async fn main() -> Result<()> {
                 .unwrap_or(0);
             let t_ms = t0.elapsed().as_millis();
 
-            match parse_line(s_trim) {
+            match parser::parse_line(s_trim) {
                 Incoming::ModeLine(m) => {
                     if opts.echo_mode_lines {
                         eprintln!("[ARDUINO] {m}");
@@ -334,7 +360,13 @@ async fn main() -> Result<()> {
                         hp: None,
                         mv: None,
                     };
-                    output(&opts, &mut csv_file, rec)?;
+                    if let Some(f) = csv_file.as_mut() {
+                        write_csv_record(f, &rec);
+                    }
+                    if let Err(err) = http_tx.send(rec).await {
+                        error!("HTTP sink channel closed: {err}");
+                        break 'serial;
+                    }
                 }
                 Incoming::Sample(adc) => {
                     let mut x_adc = (adc as f32) - 511.5;
@@ -353,7 +385,13 @@ async fn main() -> Result<()> {
                         hp: Some(x_adc),
                         mv: Some(mv),
                     };
-                    output(&opts, &mut csv_file, rec)?;
+                    if let Some(f) = csv_file.as_mut() {
+                        write_csv_record(f, &rec);
+                    }
+                    if let Err(err) = http_tx.send(rec).await {
+                        error!("HTTP sink channel closed: {err}");
+                        break 'serial;
+                    }
                 }
                 Incoming::Unknown(_) => { /* ignore */ }
             }
@@ -362,6 +400,9 @@ async fn main() -> Result<()> {
 
     drop(cmd_tx);
     let _ = shutdown_tx.send(true);
+    drop(http_tx);
+
+    control_poll_task.abort();
 
     match stdin_task.await {
         Ok(()) => {}
@@ -375,7 +416,40 @@ async fn main() -> Result<()> {
         Err(e) => error!("writer task join error: {e}"),
     }
 
+    match control_poll_task.await {
+        Ok(()) => {}
+        Err(e) if e.is_cancelled() => debug!("control poll task cancelled"),
+        Err(e) => error!("control poll task join error: {e}"),
+    }
+
+    match http_sink_task.await {
+        Ok(()) => {}
+        Err(e) if e.is_cancelled() => debug!("http sink task cancelled"),
+        Err(e) => error!("http sink task join error: {e}"),
+    }
+
     Ok(())
+}
+
+fn write_csv_record(file: &mut File, rec: &SampleJson) {
+    if let Some(adc) = rec.adc {
+        let _ = writeln!(
+            file,
+            "{},{},{},{},{},{}",
+            rec.t_ms,
+            rec.ts_unix_ms,
+            rec.lead_off as u8,
+            adc,
+            rec.hp.map(|v| v.to_string()).unwrap_or_default(),
+            rec.mv.map(|v| v.to_string()).unwrap_or_default()
+        );
+    } else {
+        let _ = writeln!(
+            file,
+            "{},{},{},,,",
+            rec.t_ms, rec.ts_unix_ms, rec.lead_off as u8
+        );
+    }
 }
 
 fn looks_like_number_str(s: &str) -> bool {
@@ -392,10 +466,10 @@ fn looks_like_number_str(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{looks_like_number_str, output, Mode, Opts, OutFmt, DEFAULT_BAUD};
+    use super::{DEFAULT_BAUD, Mode, Opts, OutFmt, looks_like_number_str, output};
     use crate::parser::SampleJson;
     use clap::Parser;
-    use std::fs::{remove_file, File};
+    use std::fs::{File, remove_file};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     macro_rules! mode_letter_tests {
@@ -738,6 +812,7 @@ mod tests {
     }
 }
 
+#[allow(dead_code)]
 fn output(opts: &Opts, csv_file: &mut Option<File>, rec: SampleJson) -> Result<()> {
     match opts.format {
         OutFmt::Ndjson => {
@@ -762,26 +837,7 @@ fn output(opts: &Opts, csv_file: &mut Option<File>, rec: SampleJson) -> Result<(
     }
 
     if let Some(f) = csv_file.as_mut() {
-        if let Some(adc) = rec.adc {
-            writeln!(
-                f,
-                "{},{},{},{},{},{}",
-                rec.t_ms,
-                rec.ts_unix_ms,
-                rec.lead_off as u8,
-                adc,
-                rec.hp.map(|v| v.to_string()).unwrap_or_default(),
-                rec.mv.map(|v| v.to_string()).unwrap_or_default()
-            )
-            .ok();
-        } else {
-            writeln!(
-                f,
-                "{},{},{},,,",
-                rec.t_ms, rec.ts_unix_ms, rec.lead_off as u8
-            )
-            .ok();
-        }
+        write_csv_record(f, &rec);
     }
 
     Ok(())

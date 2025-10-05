@@ -1,7 +1,15 @@
 from __future__ import annotations
+from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+
+
+class SignalMode(str, Enum):
+    ecg = "ecg"
+    ppg = "ppg"
+    resp = "resp"
+    emg = "emg"
 
 class Sample(BaseModel):
     t_ms: int = Field(..., description="Device relative time in ms")

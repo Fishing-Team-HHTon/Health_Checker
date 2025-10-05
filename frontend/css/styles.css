@@ -86,6 +86,8 @@ input[type="checkbox"]{transform:scale(1.05)}
 .chart-card{background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:var(--shadow)}
 .chart-header{padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:12px}
 .chart-header .subtitle{color:var(--muted)}
+.chart-header .subtitle.status-ok{color:#1a7f37}
+.chart-header .subtitle.status-error{color:#d92d20}
 .chart-wrap{height:420px; padding:8px}
 #chart{width:100%; height:100%; display:block}
 

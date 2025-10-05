@@ -3,10 +3,10 @@ use tracing::{debug, trace};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Incoming {
-    ModeLine(String), 
-    LeadOff,          
-    Sample(u16),      
-    Unknown(String),  
+    ModeLine(String),
+    LeadOff,
+    Sample(u16),
+    Unknown(String),
 }
 
 pub fn parse_line(line: &str) -> Incoming {

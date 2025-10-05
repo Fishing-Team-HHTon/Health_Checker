@@ -17,7 +17,6 @@ impl SerialFramer {
         }
     }
 
-    /// Возвращает текущий размер внутреннего буфера (для тестов/диагностики).
     #[allow(dead_code)]
     pub fn pending_len(&self) -> usize {
         self.pending.len()
