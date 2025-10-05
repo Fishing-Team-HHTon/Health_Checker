@@ -105,21 +105,207 @@ function initMeasurement(){
   const manualY   = $('#manualY');
   const optCap    = $('#opt-cap');
   const optFs     = $('#opt-fs');
+  const optStyle  = $('#opt-style');
+
+  const chartStylePresets = {
+    'eu-paper': {
+      label: 'Европа — бумажная лента (EN 60601-2-25)',
+      chart: {
+        background: '#ffffff',
+        traceColor: '#d12c2c',
+        axisColor: '#424242',
+        font: "12px 'PT Sans', system-ui",
+        labelPrecision: 1,
+        grid: {
+          majorColor: 'rgba(209,44,44,0.45)',
+          majorLineWidth: 1.2,
+          majorV: 10,
+          majorH: 10,
+          minorColor: 'rgba(209,44,44,0.22)',
+          minorLineWidth: 0.6,
+          minorV: 50,
+          minorH: 50
+        }
+      },
+      options: {
+        smooth: false,
+        lineWidth: 2
+      }
+    },
+    'us-monitor': {
+      label: 'США — монитор (AHA/ANSI/AAMI EC13)',
+      chart: {
+        background: '#00140f',
+        traceColor: '#16ff76',
+        axisColor: '#84ffcc',
+        font: "12px 'Roboto Mono', ui-monospace",
+        labelPrecision: 1,
+        grid: {
+          majorColor: 'rgba(22,255,118,0.28)',
+          majorLineWidth: 1.1,
+          majorV: 8,
+          majorH: 12,
+          minorColor: 'rgba(22,255,118,0.12)',
+          minorLineWidth: 0.6,
+          minorV: 40,
+          minorH: 60
+        }
+      },
+      options: {
+        smooth: true,
+        lineWidth: 3,
+        grid: true
+      }
+    },
+    'jp-monitor': {
+      label: 'Япония — клинический монитор (JIS T 0103)',
+      chart: {
+        background: '#081325',
+        traceColor: '#ffd447',
+        axisColor: '#cdd6ff',
+        font: "12px 'Noto Sans JP', system-ui",
+        labelPrecision: 1,
+        grid: {
+          majorColor: 'rgba(118,152,238,0.35)',
+          majorLineWidth: 1,
+          majorV: 8,
+          majorH: 10,
+          minorColor: 'rgba(118,152,238,0.16)',
+          minorLineWidth: 0.5,
+          minorV: 40,
+          minorH: 50
+        }
+      },
+      options: {
+        smooth: true,
+        lineWidth: 3
+      }
+    },
+    'ru-paper': {
+      label: 'Россия — диагностическая бумага (ГОСТ 33087)',
+      chart: {
+        background: '#ffffff',
+        traceColor: '#0050b3',
+        axisColor: '#264a73',
+        font: "12px 'Roboto', system-ui",
+        labelPrecision: 1,
+        grid: {
+          majorColor: 'rgba(0,80,179,0.35)',
+          majorLineWidth: 1.1,
+          majorV: 10,
+          majorH: 10,
+          minorColor: 'rgba(0,80,179,0.16)',
+          minorLineWidth: 0.6,
+          minorV: 50,
+          minorH: 50
+        }
+      },
+      options: {
+        smooth: false,
+        lineWidth: 2
+      }
+    }
+  };
+
+  const defaultStyleBySignal = {
+    ecg: 'eu-paper',
+    emg: 'us-monitor',
+    ppg: 'ru-paper',
+    resp: 'jp-monitor'
+  };
+
+  const STYLE_STORAGE_KEY = 'biosignals.stylePreset';
+
+  const hasWindow = typeof window !== 'undefined';
+
+  function loadStoredStyleMap(){
+    if (!(hasWindow && 'localStorage' in window)) return {};
+    try {
+      const raw = window.localStorage.getItem(STYLE_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (err){
+      console.warn('loadStoredStyleMap: failed', err);
+      return {};
+    }
+  }
+
+  let storedStyleMap = loadStoredStyleMap();
+
+  function resolveStoredStyle(signalType){
+    return storedStyleMap[signalType] || storedStyleMap['*'] || null;
+  }
+
+  function persistStoredStyle(signalType, styleKey){
+    if (!styleKey) return;
+    const type = signalType || '*';
+    storedStyleMap = {...storedStyleMap, [type]: styleKey};
+    if (!(hasWindow && 'localStorage' in window)) return;
+    try {
+      window.localStorage.setItem(STYLE_STORAGE_KEY, JSON.stringify(storedStyleMap));
+    } catch (err){
+      console.warn('persistStoredStyle: failed', err);
+    }
+  }
+
+  const storedInitialStyle = resolveStoredStyle(currentType);
+  let currentStyleKey = storedInitialStyle || defaultStyleBySignal[currentType] || 'eu-paper';
+  let userStyleLocked = !!storedInitialStyle;
+
+  if (optStyle){
+    optStyle.innerHTML = '';
+    Object.entries(chartStylePresets).forEach(([key, preset]) => {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = preset.label;
+      optStyle.appendChild(option);
+    });
+    optStyle.value = currentStyleKey;
+  }
 
   function applyOpts(){
-    chart.setOptions({
-      smooth: optSmooth.checked,
-      grid: optGrid.checked,
-      lineWidth: optWidth.value,
-      autoY: optAutoY.checked,
-      ymin: optYmin.value,
-      ymax: optYmax.value,
-      capacity: optCap.value
-    });
-    manualY.classList.toggle('hidden', optAutoY.checked);
+    const nextOpts = {};
+    if (optSmooth) nextOpts.smooth = optSmooth.checked;
+    if (optGrid) nextOpts.grid = optGrid.checked;
+    if (optWidth) nextOpts.lineWidth = optWidth.value;
+    if (optAutoY) nextOpts.autoY = optAutoY.checked;
+    if (optYmin) nextOpts.ymin = optYmin.value;
+    if (optYmax) nextOpts.ymax = optYmax.value;
+    if (optCap) nextOpts.capacity = optCap.value;
+    chart.setOptions(nextOpts);
+    if (manualY && optAutoY) manualY.classList.toggle('hidden', optAutoY.checked);
   }
-  [optSmooth,optGrid,optWidth,optAutoY,optYmin,optYmax,optCap].forEach(el => el.addEventListener('input', applyOpts));
-  applyOpts();
+  [optSmooth,optGrid,optWidth,optAutoY,optYmin,optYmax,optCap]
+    .filter(Boolean)
+    .forEach(el => el.addEventListener('input', applyOpts));
+
+  function applyStylePreset(key, {updateControls = true, persist = false} = {}){
+    const preset = chartStylePresets[key] || chartStylePresets['eu-paper'];
+    currentStyleKey = key;
+    chart.setStyle(preset.chart);
+    if (optStyle && optStyle.value !== key) optStyle.value = key;
+    if (updateControls && preset.options){
+      if ('smooth' in preset.options && optSmooth) optSmooth.checked = !!preset.options.smooth;
+      if ('grid' in preset.options && optGrid) optGrid.checked = !!preset.options.grid;
+      if ('lineWidth' in preset.options && optWidth) optWidth.value = preset.options.lineWidth;
+    }
+    if (persist){
+      persistStoredStyle(currentType, key);
+      persistStoredStyle('*', key);
+    }
+    applyOpts();
+  }
+
+  applyStylePreset(currentStyleKey, {updateControls: true});
+
+  if (optStyle){
+    optStyle.addEventListener('change', (event) => {
+      userStyleLocked = true;
+      const key = (event.target && event.target.value) || currentStyleKey;
+      applyStylePreset(key, {updateControls: true, persist: true});
+    });
+  }
 
   async function setBackendMode(modeType){
     const normalized = (modeType || '').toString().trim().toLowerCase();
@@ -334,6 +520,12 @@ function initMeasurement(){
     resetRaw();
     chart.data.length = 0;
     chart.draw();
+    const storedForType = resolveStoredStyle(currentType);
+    const fallbackDefault = defaultStyleBySignal[currentType] || 'eu-paper';
+    const desiredStyle = storedForType || (userStyleLocked ? currentStyleKey : fallbackDefault);
+    userStyleLocked = !!storedForType || userStyleLocked;
+    const shouldUpdateControls = !!storedForType || !userStyleLocked;
+    applyStylePreset(desiredStyle, {updateControls: shouldUpdateControls});
     reconnectDelay = 1000;
     if (reconnectTimer){
       clearTimeout(reconnectTimer);

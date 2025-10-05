@@ -1,12 +1,30 @@
 /* Minimal timeseries chart on canvas (white/blue/blue theme) */
 class TimeSeriesChart {
+  static defaultStyle(){
+    return {
+      background: '#ffffff',
+      traceColor: '#0d6efd',
+      font: '12px system-ui, sans-serif',
+      axisColor: '#6b7b8d',
+      grid: {
+        majorColor: '#e6eef7',
+        majorLineWidth: 1,
+        majorV: 6,
+        majorH: 10
+      },
+      labelPrecision: 0
+    };
+  }
+
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.data = [];           // [{t: ms, v: number}]
     this.capacity = opts.capacity || 1000;
     this.lineWidth = opts.lineWidth || 2;
-    this.color = opts.color || '#0d6efd';
+    this.style = TimeSeriesChart.defaultStyle();
+    if (opts.style) this.setStyle(opts.style);
+    this.color = opts.color || this.style.traceColor || '#0d6efd';
     this.grid = opts.grid ?? true;
     this.smooth = opts.smooth ?? true;
     this.autoY = opts.autoY ?? true;
@@ -30,6 +48,18 @@ class TimeSeriesChart {
     if ('autoY' in o) this.autoY = !!o.autoY;
     if ('ymin' in o) this.ymin = +o.ymin;
     if ('ymax' in o) this.ymax = +o.ymax;
+    this.draw();
+  }
+
+  setStyle(style){
+    if (!style) return;
+    const current = this.style || TimeSeriesChart.defaultStyle();
+    const next = {...current, ...style};
+    if (style.grid){
+      next.grid = {...current.grid, ...style.grid};
+    }
+    this.style = next;
+    if (style.traceColor) this.color = style.traceColor;
     this.draw();
   }
 
@@ -71,8 +101,10 @@ class TimeSeriesChart {
     const plotW = W - m.l - m.r;
     const plotH = H - m.t - m.b;
 
+    const style = this.style || TimeSeriesChart.defaultStyle();
+
     // bg
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = style.background || '#ffffff';
     ctx.fillRect(0,0,W,H);
 
     // axes & grid
@@ -80,28 +112,55 @@ class TimeSeriesChart {
     const x0 = m.l, y0 = m.t, x1 = m.l + plotW, y1 = m.t + plotH;
 
     if (this.grid){
-      ctx.strokeStyle = '#e6eef7';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      const vTicks = 6, hTicks = 10;
-      for (let i=0;i<=vTicks;i++){
-        const y = y0 + (plotH * i / vTicks);
-        ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+      const grid = style.grid || {};
+      const drawGridLines = (count, orientation, color, width, skipEvery = 0) => {
+        if (!count || count < 0) return;
+        ctx.beginPath();
+        ctx.lineWidth = width || 1;
+        ctx.strokeStyle = color || 'rgba(0,0,0,0.08)';
+        const denom = count || 1;
+        for (let i = 0; i <= count; i++){
+          if (skipEvery > 1 && i % skipEvery === 0) continue;
+          if (orientation === 'horizontal'){
+            const y = y0 + (plotH * i / denom);
+            ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+          } else {
+            const x = x0 + (plotW * i / denom);
+            ctx.moveTo(x, y0); ctx.lineTo(x, y1);
+          }
+        }
+        ctx.stroke();
+      };
+
+      const majorV = Number.isFinite(grid.majorV) ? Math.max(1, grid.majorV) : 6;
+      const majorH = Number.isFinite(grid.majorH) ? Math.max(1, grid.majorH) : 10;
+      const minorV = Number.isFinite(grid.minorV) ? Math.max(1, grid.minorV) : 0;
+      const minorH = Number.isFinite(grid.minorH) ? Math.max(1, grid.minorH) : 0;
+
+      const skipMinorV = (minorV > majorV && majorV && Number.isFinite(minorV / majorV) && Math.abs(Math.round(minorV/majorV) - (minorV/majorV)) < 1e-6)
+        ? Math.round(minorV / majorV)
+        : 0;
+      const skipMinorH = (minorH > majorH && majorH && Number.isFinite(minorH / majorH) && Math.abs(Math.round(minorH/majorH) - (minorH/majorH)) < 1e-6)
+        ? Math.round(minorH / majorH)
+        : 0;
+
+      if (grid.minorColor){
+        if (minorV) drawGridLines(minorV, 'horizontal', grid.minorColor, grid.minorLineWidth || 1, skipMinorV);
+        if (minorH) drawGridLines(minorH, 'vertical', grid.minorColor, grid.minorLineWidth || 1, skipMinorH);
       }
-      for (let i=0;i<=hTicks;i++){
-        const x = x0 + (plotW * i / hTicks);
-        ctx.moveTo(x, y0); ctx.lineTo(x, y1);
-      }
-      ctx.stroke();
+
+      drawGridLines(majorV, 'horizontal', grid.majorColor || '#e6eef7', grid.majorLineWidth || 1);
+      drawGridLines(majorH, 'vertical', grid.majorColor || '#e6eef7', grid.majorLineWidth || 1);
 
       // y labels
-      ctx.fillStyle = '#6b7b8d';
-      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillStyle = style.axisColor || '#6b7b8d';
+      ctx.font = style.font || '12px system-ui, sans-serif';
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      for (let i=0;i<=vTicks;i++){
-        const val = yr.max - (yr.max-yr.min)*i/vTicks;
-        const y = y0 + (plotH * i / vTicks);
-        ctx.fillText(val.toFixed(0), x0-6, y);
+      const precision = Number.isInteger(style.labelPrecision) ? style.labelPrecision : 0;
+      for (let i=0;i<=majorV;i++){
+        const val = yr.max - (yr.max-yr.min)*i/majorV;
+        const y = y0 + (plotH * i / majorV);
+        ctx.fillText(val.toFixed(precision), x0-6, y);
       }
     }
 

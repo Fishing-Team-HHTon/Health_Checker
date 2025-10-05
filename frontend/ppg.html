@@ -22,6 +22,14 @@
   <aside class="panel left">
     <h3>Настройки графика</h3>
     <div class="form">
+      <label class="row"><span>Стандарт оформления</span>
+        <select id="opt-style">
+          <option value="eu-paper">Европа — бумажная лента (EN 60601-2-25)</option>
+          <option value="us-monitor">США — монитор (AHA/ANSI/AAMI EC13)</option>
+          <option value="jp-monitor">Япония — клинический монитор (JIS T 0103)</option>
+          <option value="ru-paper">Россия — диагностическая бумага (ГОСТ 33087)</option>
+        </select>
+      </label>
       <label class="row"><span>Интерполяция</span><input id="opt-smooth" type="checkbox" checked></label>
       <label class="row"><span>Сетка</span><input id="opt-grid" type="checkbox" checked></label>
       <label class="row"><span>Толщина линии</span><input id="opt-width" type="range" min="1" max="5" value="2"></label>
