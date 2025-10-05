@@ -2,15 +2,14 @@ import json
 import numpy as np
 import torch
 import torch.nn.functional as F
-# Не тестил так как модель не обучилась все 30 эпох
+from modelecg import ResNet1D  # Импортируем класс модели
+
 # ---------------------- ПАРАМЕТРЫ ----------------------
-MODEL_PATH = "best_ecg_model.pt"  # твоя готовая модель
+WEIGHTS_PATH = "best_ecg_model.pt"  # файл с весами
 DEVICE = 'cpu'
 TARGET_LENGTH = 500
 CHANNELS = ('mv',)
-# MI - миокард STTC - ишемия CD - нарушение проводимости сердца HYP - гипертрофия
 CLASSES = ["NORM", "MI", "STTC", "CD", "HYP"]
-
 
 # ---------------------- ФУНКЦИИ ----------------------
 def ecg_json_to_tensor(json_lines, channels=CHANNELS, target_length=TARGET_LENGTH, device=DEVICE):
@@ -40,7 +39,8 @@ def ecg_json_to_tensor(json_lines, channels=CHANNELS, target_length=TARGET_LENGT
 def predict_ecg_from_json(model, json_lines, channels=CHANNELS, target_length=TARGET_LENGTH, device=DEVICE):
     """Предсказание класса ЭКГ для JSON-данных"""
     model.eval()
-    tensor = ecg_json_to_tensor(json_lines, channels, target_length, device)
+    tensor = ecg_json_to_tensor(json_lines, channels=('mv',), target_length=500, device=DEVICE)
+    tensor = tensor.repeat(1, 12, 1)
 
     with torch.no_grad():
         outputs = model(tensor)
@@ -53,20 +53,30 @@ def predict_ecg_from_json(model, json_lines, channels=CHANNELS, target_length=TA
 
 
 # ---------------------- ЗАГРУЗКА МОДЕЛИ ----------------------
-print("Загружаем готовую модель...")
-model = torch.load(MODEL_PATH, map_location=DEVICE)
+print("Создаём модель...")
+model = ResNet1D(num_classes=len(CLASSES), in_channels=12)
+model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
 model.to(DEVICE)
 model.eval()
 print("Модель загружена.")
 
 # ---------------------- ПРИМЕР ПРЕДСКАЗАНИЯ ----------------------
-example_json_lines = [
-    '{"t_ms":91779,"ts_unix_ms":1759583546311,"adc":796,"lead_off":false,"hp":-0.44364676,"mv":-2.1683614}',
-    '{"t_ms":91794,"ts_unix_ms":1759583546326,"adc":794,"lead_off":false,"hp":0.74286014,"mv":3.6307926}',
-    '{"t_ms":91810,"ts_unix_ms":1759583546342,"adc":795,"lead_off":false,"hp":1.574391,"mv":7.694971}',
-    '{"t_ms":91825,"ts_unix_ms":1759583546357,"adc":719,"lead_off":false,"hp":-22.712088,"mv":-111.00727}',
-    '{"t_ms":91826,"ts_unix_ms":1759583546358,"adc":796,"lead_off":false,"hp":6.742752,"mv":32.95578}'
-]
+#       |---------------------- Создаем тестовый сигнал ----------------------
+#       | - Генерируем синусоидальный сигнал с шумом, длиной 500
+t = np.linspace(0, 1, TARGET_LENGTH)
+signal_mv = 0.5 * np.sin(2 * np.pi * 5 * t) + 0.05 * np.random.randn(TARGET_LENGTH)
+
+# Переводим в JSON строки (имитация твоего формата)
+example_json_lines = []
+for i, val in enumerate(signal_mv):
+    example_json_lines.append(json.dumps({
+        "t_ms": i*5,  # пример времени
+        "ts_unix_ms": 1759583546311 + i*5,
+        "adc": int(val*1000),  # просто для примера
+        "lead_off": False,
+        "hp": val,
+        "mv": val
+    }))
 
 predicted_class, confidence, probs = predict_ecg_from_json(model, example_json_lines)
 print(f"Predicted class: {predicted_class}")
